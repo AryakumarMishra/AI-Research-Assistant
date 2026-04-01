@@ -1,108 +1,88 @@
-import React, { useState } from 'react';
-import { Toaster } from 'react-hot-toast';
-import FileUpload from './components/FileUpload';
-import ChatInterface from './components/ChatInterface';
-import Sidebar from './components/Sidebar';
+import { useState } from 'react'
+import Header from './components/Header'
+import ChatPanel from './components/ChatPanel'
+import Sidebar from './components/Sidebar'
+import './App.css'
 
 function App() {
-  const [sessions, setSessions] = useState([]);
-  const [activeSessionId, setActiveSessionId] = useState(null);
+  const [messages, setMessages] = useState([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [sources, setSources] = useState([])
+  const [findings, setFindings] = useState([])
+  const [showSidebar, setShowSidebar] = useState(true)
 
-  // Derive the active session object
-  const activeSession = sessions.find(s => s.id === activeSessionId);
+  const handleSendMessage = async (content) => {
+    const userMessage = { role: 'user', content, timestamp: new Date() }
+    setMessages(prev => [...prev, userMessage])
+    setIsLoading(true)
 
-  const handleUploadSuccess = (pdfId, fileName) => {
-    const newSession = {
-      id: Date.now().toString(), // Simple unique ID
-      pdfId,
-      fileName,
-      messages: [{ type: 'ai', content: `Document "${fileName}" processed. Ask me anything about it!` }]
-    };
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: content })
+      })
 
-    setSessions(prev => [newSession, ...prev]);
-    setActiveSessionId(newSession.id);
-  };
-
-  const handleSendMessage = (message) => {
-    if (!activeSessionId) return;
-
-    setSessions(prev => prev.map(session => {
-      if (session.id === activeSessionId) {
-        return {
-          ...session,
-          messages: [...session.messages, message]
-        };
+      const data = await response.json()
+      
+      const assistantMessage = { 
+        role: 'assistant', 
+        content: data.response, 
+        timestamp: new Date() 
       }
-      return session;
-    }));
-  };
-
-  const handleDeleteSession = (sessionId) => {
-    setSessions(prev => prev.filter(s => s.id !== sessionId));
-    if (activeSessionId === sessionId) {
-      setActiveSessionId(null);
+      
+      setMessages(prev => [...prev, assistantMessage])
+      
+      if (data.sources?.length > 0) {
+        setSources(prev => [...prev, ...data.sources])
+      }
+      
+      if (data.findings?.length > 0) {
+        setFindings(data.findings)
+      }
+    } catch (error) {
+      const errorMessage = { 
+        role: 'assistant', 
+        content: 'Sorry, I encountered an error. Please try again.',
+        timestamp: new Date(),
+        isError: true
+      }
+      setMessages(prev => [...prev, errorMessage])
+    } finally {
+      setIsLoading(false)
     }
-  };
+  }
+
+  const clearChat = () => {
+    setMessages([])
+    setSources([])
+    setFindings([])
+  }
 
   return (
-    <div className="flex h-screen bg-slate-900 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-800 via-slate-900 to-slate-900 text-white overflow-hidden">
-      {/* Background Decor */}
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl -translate-y-1/2 pointer-events-none z-0"></div>
-
-      {/* Sidebar */}
-      <Sidebar
-        sessions={sessions}
-        activeSessionId={activeSessionId}
-        onSwitchSession={setActiveSessionId}
-        onNewChat={() => setActiveSessionId(null)}
-        onDeleteSession={handleDeleteSession}
+    <div className="app">
+      <Header 
+        onToggleSidebar={() => setShowSidebar(!showSidebar)}
+        onClearChat={clearChat}
+        messageCount={messages.length}
       />
-
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col relative z-10 w-full">
-        <div className="flex-1 p-4 md:p-8 flex items-center justify-center overflow-hidden">
-
-          {!activeSessionId ? (
-            // Upload View
-            <div className="w-full flex flex-col items-center animate-in fade-in zoom-in duration-500">
-              <header className="mb-12 text-center">
-                <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary mb-4">
-                  AI Research Assistant
-                </h1>
-                <p className="text-slate-400 text-lg max-w-2xl mx-auto">
-                  Upload a new research paper to start a conversation.
-                </p>
-              </header>
-              <FileUpload onUploadSuccess={handleUploadSuccess} />
-            </div>
-          ) : (
-            // Chat View
-            <div className="w-full h-full animate-in slide-in-from-right-10 fade-in duration-300">
-              <ChatInterface
-                key={activeSession.id} // Re-mount when session changes to reset internal temporary states if any
-                pdfId={activeSession.pdfId}
-                fileName={activeSession.fileName}
-                messages={activeSession.messages}
-                onSendMessage={handleSendMessage}
-              />
-            </div>
-          )}
-
-        </div>
-      </main>
-
-      <Toaster
-        position="bottom-right"
-        toastOptions={{
-          style: {
-            background: '#1e293b',
-            color: '#fff',
-            border: '1px solid #334155',
-          },
-        }}
-      />
+      
+      <div className="main-container">
+        <ChatPanel 
+          messages={messages}
+          isLoading={isLoading}
+          onSendMessage={handleSendMessage}
+        />
+        
+        {showSidebar && (
+          <Sidebar 
+            sources={sources}
+            findings={findings}
+          />
+        )}
+      </div>
     </div>
-  );
+  )
 }
 
-export default App;
+export default App

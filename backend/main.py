@@ -1,119 +1,147 @@
-from fastapi import FastAPI, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
-from io import BytesIO
-import uuid
-import os
+from fastapi import FastAPI
+from langgraph.graph import START, END, StateGraph
+from langgraph.prebuilt import ToolNode
+from langchain_community.tools import DuckDuckGoSearchRun
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
+import arxiv
+from dotenv import load_dotenv
 
-from .core.load_pdf import load_pdf
-from .core.embed_doc import embed_doc
-from .core.retrieve_doc import retrieve_doc
-from .schema.output_schema import Paper
-from .schema.query_schema import QueryInput, ChatInput
-from .core.generate_sections import generate_section, load_cached_sections, save_sections_to_file
-from .core.retrieve_doc import get_retriever
+load_dotenv(override=True)
+
+from .state.research_state import ResearchState
 from .core.get_llm import get_llm
+from .core.tools import calculator, arxiv_search, duckduckgo_search
+
 
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"]
-)
 
 
-# Test Endpoint
+llm = get_llm()
+
+tools = [duckduckgo_search, calculator, arxiv_search]
+llm_with_tools = llm.bind_tools(tools)
+tool_node = ToolNode(tools)
+
+
+# Helper Functions
+def has_tool_calls(state: ResearchState) -> bool:
+    """Check if the last message contains tool calls"""
+    if not state.get("messages"):
+        return False
+    last_msg = state["messages"][-1]
+    return hasattr(last_msg, "tool_calls") and last_msg.tool_calls
+
+
+def extract_findings(state: ResearchState):
+    """Extract findings from the last message and update state"""
+    if not state.get("messages"):
+        return state
+    
+    last_msg = state["messages"][-1]
+    
+    if hasattr(last_msg, "content") and last_msg.content:
+        if "findings" not in state:
+            state["findings"] = []
+        state["findings"].append(last_msg.content)
+        
+        current_iter = state.get("iteration", 0)
+        state["iteration"] = current_iter + 1
+    
+    return state
+
+
+# Router: Decide next step
+def router(state: ResearchState):
+    """Route to tools, synthesize, or end based on state"""
+    if has_tool_calls(state):
+        return "tools"
+    
+    if state.get("iteration", 0) >= 2 and state.get("findings"):
+        return "synthesize"
+    
+    return END
+
+
+# Node Functions
+def extract_findings_node(state: ResearchState):
+    """Node to extract findings after tool execution"""
+    return extract_findings(state)
+
+
+def synthesize_findings(state: ResearchState):
+    """Combine all findings into a coherent report"""
+    findings_text = "\n".join(state.get("findings", [])) if state.get("findings") else "No findings available."
+    
+    messages = [
+        SystemMessage(content="You are a research synthesizer. Create a clear, concise report based on the findings. Include citations where available."),
+        HumanMessage(content=f"Research Topic: {state.get('research_topic', 'Unknown')}\n\nFindings:\n{findings_text}")
+    ]
+    response = llm.invoke(messages)
+    
+    return {"messages": [AIMessage(content=response.content)]}
+
+
+def chat_node(state: ResearchState):
+    """LLM node that may answer or request tool calls"""
+    messages = state["messages"]
+    response = llm_with_tools.invoke(messages)
+    
+    return {"messages": [response]}
+
+
+
+# Defining the Graph
+graph = StateGraph(ResearchState)
+ 
+graph.add_node("chat", chat_node)
+graph.add_node("tools", tool_node)
+graph.add_node("extract", extract_findings_node)
+graph.add_node("synthesize", synthesize_findings)
+ 
+graph.add_edge(START, "chat")
+graph.add_conditional_edges("chat", router, {"tools": "tools", "synthesize": "synthesize", END: END})
+graph.add_edge("tools", "extract")
+graph.add_edge("extract", "chat")
+graph.add_edge("synthesize", END)
+ 
+workflow = graph.compile()
+
+
+
+
+# API Endpoints
 @app.get("/")
-def home_page():
-    return "Welcome to your AI Research Assistant"
-
-
-# Main Endpoints
-@app.post("/upload_pdf")
-async def upload_file(file: UploadFile):
-    pdf_id = uuid.uuid4().hex
-
-    text = await file.read()
-    file_stream = BytesIO(text)
-
-    md_path = load_pdf(file_stream, pdf_id, file.filename)
-    embed_doc(md_path, pdf_id)
-       
-    return {
-        'message': 'File uploaded successfully',
-        'path': 'uploaded_data/extracted.md',
-        'embeddings':'backend/faiss_index',
-        'pdf_id': pdf_id
-    }
-
-
-@app.post("/analyze_sections")
-async def analyze_sections(pdf_id: str):
-    cached = load_cached_sections(pdf_id)
-    if cached:
-        return cached
-
-    retriever = get_retriever(pdf_id)
-    llm = get_llm()
-
-    results = {}
-
-    for section in ["problem_statement", "motivation", "methodology"]:
-        results[section] = generate_section(
-            section_name=section,
-            retriever=retriever,
-            llm=llm
-        )
-
-    save_sections_to_file(pdf_id, results)
-    return results
+def read_root():
+    return {"Hello": "World"}
 
 
 @app.post("/chat")
-async def chat(request: ChatInput):
-    retriever = get_retriever(request.pdf_id)
-    docs = retriever.invoke(request.question)[:3]
+def chat(request: dict):
+    user_message = request.get("message", "")
+    
+    system_message = SystemMessage(content="""You are a research assistant with access to these tools:
+        - duckduckgo_search: Search the web for current information
+        - arxiv_search: Search academic papers on arXiv
+        - calculator: Perform mathematical calculations
 
-    context = "\n\n".join(doc.page_content for doc in docs)
+        Only use these exact tool names. Do not attempt to use any other tools.""")
+    
+    state = {
+        "messages": [system_message, HumanMessage(content=user_message)],
+        "context": [],
+        "research_topic": user_message,
+        "search_results": [],
+        "sources": [],
+        "findings": [],
+        "iteration": 0
+    }
 
-    prompt = f"""
-        You are an AI research assistant performing context-grounded question answering.
-
-        STRICT RULES (must be followed):
-        1. Use ONLY the information contained in the provided context.
-        2. Do NOT use prior knowledge or external information.
-        3. If the answer exists in the context, you MUST extract and summarize it.
-        4. ONLY reply "Not found in the provided document." if the information is completely absent.
-        5. Every claim in the answer MUST be supported by the provided context.
-        6. Include verbatim context excerpts that directly support the answer.
-
-        Answer guidelines:
-        - Answer the question fully using information from the context.
-        - 3–5 concise sentences.
-        - Prefer technical specificity over general summaries.
-
-        Required output format:
-
-        Answer:
-        <concise, context-grounded answer>
-
-        Supporting Context (verbatim):
-        <exact excerpts used>
-
-        Context:
-        {context}
-
-        Question:
-        {request.question}
-        """
-
-
-
-    llm = get_llm()
-    answer = llm.invoke(prompt)
-
+    final_state = workflow.invoke(state)
+    
     return {
-        "answer": answer,
-        "sources": [doc.metadata for doc in docs]
+        "response": final_state["messages"][-1].content,
+        "sources": final_state.get("sources", []),
+        "findings": final_state.get("findings", [])
     }

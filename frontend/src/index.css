@@ -1,20 +1,36 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@layer base {
-  body {
-    @apply bg-slate-900 text-white font-sans antialiased;
-  }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-/* Scrollbar customization for a premium feel */
-::-webkit-scrollbar {
-  width: 8px;
+:root {
+  --primary: #6366f1;
+  --primary-dark: #4f46e5;
+  --secondary: #8b5cf6;
+  --accent: #ec4899;
+  --bg-primary: #0f0f23;
+  --bg-secondary: #1a1a2e;
+  --bg-tertiary: #252542;
+  --text-primary: #ffffff;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --border: #3f3f5f;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --error: #ef4444;
 }
-::-webkit-scrollbar-track {
-  @apply bg-slate-800;
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  line-height: 1.6;
 }
-::-webkit-scrollbar-thumb {
-  @apply bg-slate-600 rounded-full hover:bg-slate-500 transition-colors;
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
