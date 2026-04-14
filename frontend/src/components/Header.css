@@ -69,3 +69,8 @@
   background: var(--border);
   color: var(--text-primary);
 }
+
+.header-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}

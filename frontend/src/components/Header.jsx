@@ -1,7 +1,7 @@
-import { BookOpen, Trash2, PanelRight } from 'lucide-react'
+import { BookOpen, Trash2, PanelRight, Download } from 'lucide-react'
 import './Header.css'
 
-function Header({ onToggleSidebar, onClearChat, messageCount }) {
+function Header({ onToggleSidebar, onClearChat, onExport, messageCount }) {
   return (
     <header className="header">
       <div className="header-left">
@@ -15,6 +15,15 @@ function Header({ onToggleSidebar, onClearChat, messageCount }) {
         {messageCount > 0 && (
           <span className="message-count">{messageCount} messages</span>
         )}
+        
+        <button 
+          className="header-btn"
+          onClick={onExport}
+          title="Export report"
+          disabled={messageCount === 0}
+        >
+          <Download size={18} />
+        </button>
         
         <button 
           className="header-btn"

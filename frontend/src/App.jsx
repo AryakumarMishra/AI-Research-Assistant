@@ -59,11 +59,46 @@ function App() {
     setFindings([])
   }
 
+  const handleExport = async () => {
+    if (messages.length === 0) return
+
+    const lastAssistantMessage = messages.findLast(m => m.role === 'assistant')
+    if (!lastAssistantMessage) return
+
+    try {
+      const response = await fetch('/api/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: sources.length > 0 ? 'Research Report' : 'Chat History',
+          response: lastAssistantMessage.content,
+          sources: sources,
+          findings: findings
+        })
+      })
+
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'research_report.md'
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+      }
+    } catch (error) {
+      console.error('Export failed:', error)
+    }
+  }
+
   return (
     <div className="app">
       <Header 
         onToggleSidebar={() => setShowSidebar(!showSidebar)}
         onClearChat={clearChat}
+        onExport={handleExport}
         messageCount={messages.length}
       />
       
