@@ -1,16 +1,17 @@
 from fastapi import FastAPI
 from langgraph.graph import START, END, StateGraph
 from langgraph.prebuilt import ToolNode
-from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
-import arxiv
 from dotenv import load_dotenv
+import json
+
+from sqlalchemy import exc
 
 load_dotenv(override=True)
 
 from .state.research_state import ResearchState
 from .core.get_llm import get_llm
-from .core.tools import calculator, arxiv_search, duckduckgo_search
+from .core.tools import calculator, arxiv_search, tavily_search
 
 
 
@@ -20,7 +21,7 @@ app = FastAPI()
 
 llm = get_llm()
 
-tools = [duckduckgo_search, calculator, arxiv_search]
+tools = [tavily_search, calculator, arxiv_search]
 llm_with_tools = llm.bind_tools(tools)
 tool_node = ToolNode(tools)
 
@@ -45,6 +46,26 @@ def extract_findings(state: ResearchState):
         if "findings" not in state:
             state["findings"] = []
         state["findings"].append(last_msg.content)
+
+
+        if "sources" not in state:
+            state["sources"] = []
+        
+        try:
+            parsed = json.loads(last_msg.content)
+            if isinstance(parsed, list):
+                for item in parsed:
+                    if isinstance(item, dict) and "url" in item:
+                        state["sources"].append({
+                            "title": item.get("title", "Unknown"),
+                            "url": item["url"],
+                            "authors": item.get("authors", []),
+                            "type": "arxiv" if "arxiv.org" in item["url"] else "web"
+                        })
+        
+        except (json.JSONDecodeError, TypeError):
+            pass
+            
         
         current_iter = state.get("iteration", 0)
         state["iteration"] = current_iter + 1
@@ -122,7 +143,7 @@ def chat(request: dict):
     user_message = request.get("message", "")
     
     system_message = SystemMessage(content="""You are a research assistant with access to these tools:
-        - duckduckgo_search: Search the web for current information
+        - tavily_search: Search the web for current information
         - arxiv_search: Search academic papers on arXiv
         - calculator: Perform mathematical calculations
 
