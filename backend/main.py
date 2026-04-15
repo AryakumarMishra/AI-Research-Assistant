@@ -91,12 +91,59 @@ def extract_findings_node(state: ResearchState):
 
 
 def synthesize_findings(state: ResearchState):
-    """Combine all findings into a coherent report"""
+    """Combine all findings into a coherent report with citations"""
     findings_text = "\n".join(state.get("findings", [])) if state.get("findings") else "No findings available."
+    sources = state.get("sources", [])
     
+    sources_text = ""
+    for idx, source in enumerate(sources, 1):
+        if isinstance(source, dict):
+            title = source.get("title", "Unknown")
+            url = source.get("url", "")
+            authors = source.get("authors", [])
+            sources_text += f"[{idx}] {title}\n"
+            if authors:
+                sources_text += f"    Authors: {', '.join(authors[:3])}"
+                if len(authors) > 3:
+                    sources_text += " et al."
+                sources_text += "\n"
+            if url:
+                sources_text += f"    URL: {url}\n"
+            sources_text += "\n"
+    
+    system_prompt = """You are an expert research synthesizer. Create a well-structured research report based on the findings.
+
+    Your report must follow this structure:
+
+    ## Executive Summary
+    Brief overview of the research topic and key takeaways (2-3 sentences)
+
+    ## Key Findings
+    Main findings organized by themes or categories. Use inline citations like [1], [2] to reference sources.
+
+    ## Conclusion
+    Summary of the research and any implications or future directions
+
+    ## References
+    List all sources cited in the report
+
+    Guidelines:
+    - Be clear and concise
+    - Use inline citations [1], [2] when referencing specific sources
+    - Remove duplicate information
+    - Organize findings logically
+    - Maintain academic tone
+    - If sources are provided, use the reference numbers provided"""
+
     messages = [
-        SystemMessage(content="You are a research synthesizer. Create a clear, concise report based on the findings. Include citations where available."),
-        HumanMessage(content=f"Research Topic: {state.get('research_topic', 'Unknown')}\n\nFindings:\n{findings_text}")
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=f"""Research Topic: {state.get('research_topic', 'Unknown')}
+
+    Available Sources:
+    {sources_text if sources_text else "No sources available."}
+
+    Findings:
+    {findings_text}""")
     ]
     response = llm.invoke(messages)
     

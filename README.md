@@ -8,7 +8,7 @@ An intelligent research agent built with LangGraph and FastAPI that searches the
 
 ## Features
 
-- **Web Search**: DuckDuckGo integration for current information
+- **Web Search**: Tavily Search API integration for current information
 - **Academic Papers**: arXiv search for research papers
 - **Intelligent Synthesis**: LLM-powered report generation with citations
 - **Iterative Research**: Automatically performs multiple search iterations
@@ -22,7 +22,7 @@ An intelligent research agent built with LangGraph and FastAPI that searches the
 - LangGraph - Agent orchestration with state graphs
 - LangChain - LLM integration
 - Groq - Fast LLM inference (Llama 3.1)
-- DuckDuckGo + arXiv - Search providers
+- Tavily + arXiv - Search providers
 
 **Frontend:**
 - React 18 + Vite
@@ -93,7 +93,7 @@ Frontend runs at: `http://localhost:3000`
 1. Open the frontend in your browser (`http://localhost:3000`)
 2. Type your research question in the chat input
 3. The agent will:
-   - Search the web (DuckDuckGo)
+   - Search the web (Tavily)
    - Search academic papers (arXiv)
    - Synthesize findings into a report
    - Display sources and findings in the sidebar
