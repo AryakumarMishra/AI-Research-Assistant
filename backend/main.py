@@ -10,7 +10,7 @@ load_dotenv(override=True)
 
 from .state.research_state import ResearchState
 from .core.get_llm import get_llm
-from .core.tools import calculator, arxiv_search, tavily_search
+from .core.tools import calculator, arxiv_search, tavily_search, read_arxiv_pdf
 
 
 
@@ -20,7 +20,7 @@ app = FastAPI()
 
 llm = get_llm()
 
-tools = [tavily_search, calculator, arxiv_search]
+tools = [tavily_search, calculator, arxiv_search, read_arxiv_pdf]
 llm_with_tools = llm.bind_tools(tools)
 tool_node = ToolNode(tools)
 
@@ -192,6 +192,7 @@ def chat(request: dict):
         - tavily_search: Search the web for current information
         - arxiv_search: Search academic papers on arXiv
         - calculator: Perform mathematical calculations
+        - read_arxiv_pdf: Download and read the full text of an arXiv paper
 
         Only use these exact tool names. Do not attempt to use any other tools.""")
     
