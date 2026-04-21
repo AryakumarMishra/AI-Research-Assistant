@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Response
+from fastapi.middleware.cors import CORSMiddleware
 from langgraph.graph import START, END, StateGraph
 from langgraph.prebuilt import ToolNode
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, AIMessage
@@ -15,7 +16,7 @@ from .core.tools import calculator, arxiv_search, tavily_search, read_arxiv_pdf
 
 
 app = FastAPI()
-
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
 llm = get_llm()
