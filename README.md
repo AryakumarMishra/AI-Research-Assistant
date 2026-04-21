@@ -1,3 +1,12 @@
+---
+title: AI Research Assistant
+emoji: 🚀
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+---
+
 # AI Research Assistant
 
 An intelligent research agent built with LangGraph and FastAPI that searches the web and academic papers (arXiv) to answer your questions with cited sources.
