@@ -4,6 +4,8 @@ import ChatPanel from './components/ChatPanel'
 import Sidebar from './components/Sidebar'
 import './App.css'
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
+
 function App() {
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(false)
@@ -17,7 +19,7 @@ function App() {
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: content })
@@ -66,7 +68,7 @@ function App() {
     if (!lastAssistantMessage) return
 
     try {
-      const response = await fetch('/api/export', {
+      const response = await fetch(`${API_BASE_URL}/export`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
