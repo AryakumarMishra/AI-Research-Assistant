@@ -14,8 +14,7 @@ COPY backend/ ./backend/
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 
-# Use PORT env var (Render provides this, defaults to 8080)
 EXPOSE 8080
 
 # Run the app - using shell form so $PORT is expanded
-CMD uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "7860"]
